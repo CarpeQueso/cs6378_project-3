@@ -1,0 +1,8 @@
+5 20 10 1000
+lamport
+
+0 dc02.utdallas.edu 4024
+1 dc03.utdallas.edu 4025
+2 dc04.utdallas.edu 4026
+3 dc05.utdallas.edu 4027
+4 dc06.utdallas.edu 4028
