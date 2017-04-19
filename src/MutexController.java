@@ -8,11 +8,11 @@ import java.io.*;
 
 public abstract class MutexController {
 
-    private final int id;
+    protected final int id;
 
-    private final String hostname;
+    protected final String hostname;
 
-    private final int port;
+    protected final int port;
 
     private int clockValue;
 
