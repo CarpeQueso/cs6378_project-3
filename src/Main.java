@@ -23,7 +23,7 @@ public class Main {
         int port = Integer.parseInt(args[2]);
         int timeBetweenRequests = Integer.parseInt(args[3]);
         int timeInCriticalSection = Integer.parseInt(args[4]);
-        int numRequests = Integer.parseInt(args[5]);
+        int numTotalRequests = Integer.parseInt(args[5]);
         String mutexAlgorithmName = args[6];
         String neighborString = args[7];
 
@@ -31,7 +31,8 @@ public class Main {
         System.out.println("Hostname: " + hostname);
         System.out.println("Port: " + port);
 
-        Node node = new Node(id, hostname, port, mutexAlgorithmName);
+        Node node = new Node(id, hostname, port, mutexAlgorithmName, timeBetweenRequests,
+                             timeInCriticalSection, numTotalRequests);
 
         String[] neighbors = neighborString.split(",");
 
