@@ -14,6 +14,8 @@ public abstract class MutexController {
 
     private final int port;
 
+    private int clockValue;
+
     private ServerController serverController;
 
     protected Queue<Message> messageQueue;
@@ -24,6 +26,7 @@ public abstract class MutexController {
         this.id = id;
         this.hostname = hostname;
         this.port = port;
+        this.clockValue = 0;
 
         this.neighbors = new HashMap<>();
         this.messageQueue = new ConcurrentLinkedQueue<>();
@@ -40,6 +43,14 @@ public abstract class MutexController {
 
     public void addNeighbor(int neighborId, String neighborHostname, int neighborPort) {
         neighbors.put(neighborId, new Neighbor(neighborId, neighborHostname, neighborPort));
+    }
+
+    public int getClockValue() {
+        return this.clockValue;
+    }
+
+    public void incrementClock() {
+        this.clockValue++;
     }
 
     public void unicast(int nodeId, Message message) {
@@ -61,7 +72,7 @@ public abstract class MutexController {
                  PrintWriter out = new PrintWriter(s.getOutputStream())) {
                 out.println(message.toString());
             } catch (IOException e) {
-                System.err.printf("Unable to send unicast message from %d to %d", this.id,
+                System.err.printf("Unable to send broadcast message from %d to %d", this.id,
                                   neighbor.getId());
             }
         }
