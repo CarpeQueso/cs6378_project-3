@@ -3,8 +3,10 @@
 
 public class RicartAgrawalaMutexController extends MutexController {
 
-    public RicartAgrawalaMutexController(int id, String hostname, int port) {
-        super(id, hostname, port);
+    public RicartAgrawalaMutexController(int id, ServerController serverController) {
+        super(id, serverController);
+
+        serverController.register(MessageType.RICART_AGRAWALA, messageQueue);
     }
 
     public void csEnter() {
