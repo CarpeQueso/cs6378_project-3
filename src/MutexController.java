@@ -39,6 +39,13 @@ public abstract class MutexController {
         this.clockValue++;
     }
 
+    public void updateClock(int clockValue) {
+        if (clockValue > this.clockValue) {
+            this.clockValue = clockValue;
+        }
+        this.clockValue++;
+    }
+
     public void unicast(int neighborId, Message message) {
         Neighbor neighbor = neighbors.get(neighborId);
 
