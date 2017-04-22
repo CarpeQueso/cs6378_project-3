@@ -1,6 +1,8 @@
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Queue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.io.*;
 import java.net.Socket;
 
@@ -27,6 +29,8 @@ public class Node implements Runnable {
 
     private Map<Integer, Neighbor> neighbors;
 
+    private Queue<Message> haltMessageQueue;
+
     public Node(int id, String hostname, int port, String mutexAlgorithm,
                 int timeBetweenRequests, int timeInCriticalSection, int numTotalRequests) {
         this.id = id;
@@ -40,6 +44,9 @@ public class Node implements Runnable {
 
         this.serverController = new ServerController(port);
         this.neighbors = new HashMap<>();
+        this.haltMessageQueue = new ConcurrentLinkedQueue<>();
+
+        this.serverController.register(MessageType.HALT, this.haltMessageQueue);
 
         if (mutexAlgorithm.equals("lamport")) {
             mutexController = new LamportMutexController(id, this.serverController);
@@ -54,6 +61,7 @@ public class Node implements Runnable {
     public void run() {
         while (numRequestsSatisfied < numTotalRequests) {
             mutexController.csEnter();
+            long timeEnter = System.currentTimeMillis();
 
             // Do something
 
@@ -66,8 +74,9 @@ public class Node implements Runnable {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-
         }
+
+
     }
 
     public void startServer() {
