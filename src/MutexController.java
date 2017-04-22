@@ -12,6 +12,8 @@ public abstract class MutexController {
 
     private int clockValue;
 
+    private boolean halt;
+
     private ServerController serverController;
 
     protected Queue<Message> messageQueue;
@@ -25,21 +27,22 @@ public abstract class MutexController {
         this.neighbors = new HashMap<>();
         this.messageQueue = new ConcurrentLinkedQueue<>();
         this.serverController = serverController;
+        this.halt = false;
     }
 
     public void addNeighbor(int neighborId, String neighborHostname, int neighborPort) {
         neighbors.put(neighborId, new Neighbor(neighborId, neighborHostname, neighborPort));
     }
 
-    public int getClockValue() {
+    public synchronized int getClockValue() {
         return this.clockValue;
     }
 
-    public void incrementClock() {
+    public synchronized void incrementClock() {
         this.clockValue++;
     }
 
-    public void updateClock(int clockValue) {
+    public synchronized void updateClock(int clockValue) {
         if (clockValue > this.clockValue) {
             this.clockValue = clockValue;
         }
@@ -70,6 +73,29 @@ public abstract class MutexController {
                                   neighbor.getId());
             }
         }
+    }
+
+    public void done() {
+        new Thread(() -> {
+                while (!halt) {
+                    if (!messageQueue.isEmpty()) {
+                        Message message = messageQueue.poll();
+                        String[] bodyComponents = message.getBody().split(":");
+                        boolean isRequest = bodyComponents[0].equals("Request");
+                        int sentClockValue = Integer.parseInt(bodyComponents[1]);
+                        updateClock(sentClockValue);
+
+                        if (isRequest) {
+                            unicast(message.getSenderId(),
+                                    new Message(message.getType(), id, "Reply:" + getClockValue()));
+                        }
+                    }
+                }
+        }).start();
+    }
+
+    public void halt() {
+        halt = true;
     }
 
     public abstract void csEnter();
