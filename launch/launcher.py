@@ -60,6 +60,8 @@ neighbor_string = ",".join(node_strings)
 
 # Start nodes
 for node in nodes:
-    node_java_run_cmd = build_java_run_cmd(project_path, main_class, node["id"], node["hostname"], node["port"], mutex_algorithm, neighbor_string)
+    node_java_run_cmd = build_java_run_cmd(project_path, main_class, node["id"], node["hostname"], node["port"],
+                                           request_delay, cs_execution_time, num_requests_to_generate,
+                                           mutex_algorithm, neighbor_string)
     os.system(cmd_base_start_shell % (net_id, node["hostname"], node_java_run_cmd))
 
