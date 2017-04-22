@@ -51,7 +51,7 @@ public class Message {
     }
 
     public static Message parseMessage(String messageString) {
-        String[] messageComponents = messageString.split(":");
+        String[] messageComponents = messageString.split(":", 3);
 
         MessageType type;
         int senderId;
