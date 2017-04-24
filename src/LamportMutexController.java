@@ -4,7 +4,7 @@ public class LamportMutexController extends MutexController{
 	private boolean allReplyReceived;
 	private int localClockValue;
 	private PriorityQueue<int[]> pq;
-	private int[] clockSender; //the clockvalue and sender pair to add into priority queue
+	private int[] clockSender; //local clockvalue and sender pair to add into priority queue
 	private HashMap<Integer,Boolean> replyReceived;
 	private boolean enterCriticalSection;
 	private int nodeNum;
@@ -39,7 +39,8 @@ public class LamportMutexController extends MutexController{
     	this.broadcast(message);
     	this.incrementClock();
     	//On receiving message
-    	while(enterCriticalSection == false){
+//    	while(enterCriticalSection == false){
+    	while(!messageQueue.isEmpty()){
 	    	for(int i=0;i<messageQueue.size();i++){
 	    		String[] messageInfo = messageQueue.poll().toString().split(":");
 	    		int senderId = Integer.parseInt(messageInfo[1]);
@@ -57,18 +58,17 @@ public class LamportMutexController extends MutexController{
 	        	 * 2.Send a reply message to the requesting process
 	        	 */
 	    		else if(type.equals("Request")){
+	    			int[] clocksender = new int[2];
 	    			int clockValue = Integer.parseInt(messageInfo[3]);
-	        		clockSender[0] = clockValue;
-	        		clockSender[1] = senderId;
-	    			pq.add(clockSender);
+	        		clocksender[0] = clockValue;
+	        		clocksender[1] = senderId;
+	    			pq.add(clocksender);
 	    			this.updateClock(clockValue);
 	      			this.incrementClock();
 	    			if(enterCriticalSection == false){
 	    				this.unicast(senderId, new Message(MessageType.LAMPORT,id,"Reply"+":"+localClockValue));
 	    				this.incrementClock();
 	    			}
-	    			System.out.println(pq.size());
-	    			System.out.println(pq.peek()[1]);
 	    		}
 	    		/*On receiving a release message
 	        	 * 1.Remove request from the queue
@@ -93,8 +93,8 @@ public class LamportMutexController extends MutexController{
 		    		allReplyReceived = true;
 		    	}
 		    	
-		    	clockSender = pq.peek();
-		    	if((allReplyReceived==true)&&(clockSender[1]==id)){
+		    	
+		    	if((allReplyReceived==true)&&(pq.peek()[1]==id)){
 		    		enterCriticalSection = true;
 		    	}
     	}
@@ -109,22 +109,4 @@ public class LamportMutexController extends MutexController{
 		this.incrementClock();
     	pq.remove();
     }
-    
-	    public static void main(String[] args){
-	    	Message m1 = new Message(MessageType.LAMPORT,1,"Request"+":"+"2");
-	    	Message m2 = new Message(MessageType.LAMPORT,2,"Request"+":"+"0");
-	    	LamportMutexController l = new LamportMutexController(0,new ServerController(1234));
-	    	l.messageQueue.add(m1);
-	    	l.messageQueue.add(m2);
-	    	l.csEnter();
-//	    	int[] a ={0,0};
-//	    	int[] b ={0,1};
-//	    	int[] c ={1,2};
-//	    	l.pq.add(b);
-//	    	l.pq.add(a);
-//	    	l.pq.add(c);
-//	    	System.out.println(l.pq.poll()[1]);
-//	    	System.out.println(l.pq.poll()[1]);
-//	    	System.out.println(l.pq.poll()[1]);
-	    }
 }
