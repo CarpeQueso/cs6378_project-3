@@ -4,11 +4,9 @@ public class LamportMutexController extends MutexController{
 	private boolean allReplyReceived;
 	private int localClockValue;
 	private PriorityQueue<int[]> pq;
-	private int[] clockSender; //local clockvalue and sender pair to add into priority queue
 	private HashMap<Integer,Boolean> replyReceived;
 	private boolean enterCriticalSection;
 	private int nodeNum;
-	
 	
 	public LamportMutexController(int id, ServerController serverController) {
        super(id, serverController);
@@ -20,7 +18,6 @@ public class LamportMutexController extends MutexController{
        }
        this.replyReceived.put(id, true);
        this.allReplyReceived =false;
-       this.clockSender = new int[2];
        this.enterCriticalSection = false;
        Comparator<int[]> comparator = new ArrayComparator();
    	   this.pq = new PriorityQueue<int[]>(3,comparator);
@@ -32,14 +29,15 @@ public class LamportMutexController extends MutexController{
     	 * 1.Insert request into priority queue
     	 * 2.Broadcast request message to all nodes
     	 */	
-    	clockSender[0] =localClockValue;
+    	int[] clockSender = new int[2]; //local clockvalue and sender pair to add into priority queue
+    	clockSender[0] =this.getClockValue();
     	clockSender[1] =id;
     	pq.add(clockSender);
     	Message message = new Message(MessageType.LAMPORT,id,"Request"+":"+localClockValue);
     	this.broadcast(message);
     	this.incrementClock();
     	//On receiving message
-//    	while(enterCriticalSection == false){
+    	while(enterCriticalSection == false){
     	while(!messageQueue.isEmpty()){
 	    	for(int i=0;i<messageQueue.size();i++){
 	    		String[] messageInfo = messageQueue.poll().toString().split(":");
@@ -97,6 +95,7 @@ public class LamportMutexController extends MutexController{
 		    	if((allReplyReceived==true)&&(pq.peek()[1]==id)){
 		    		enterCriticalSection = true;
 		    	}
+    		}
     	}
     }
 
