@@ -30,14 +30,15 @@ public class RicartAgrawalaMutexController extends MutexController {
     public void csEnter() {
         /*  On generating a critical section request
             -  Broadcast the request 
-        */
+         */
         requestingCS = true;
+        localClockValue = getClockValue();
         Message message = new Message(MessageType.RICART_AGRAWALA, id, "Request" + ":" + localClockValue);
         this.broadcast(message);
         this.incrementClock();
         //On receiving message
         while (enterCS == false) {
-            for (int i = 0; i < messageQueue.size(); i++) {
+            if (!messageQueue.isEmpty()) {
                 String[] messageInfo = messageQueue.poll().toString().split(":");
                 int senderId = Integer.parseInt(messageInfo[1]);
                 String type = messageInfo[2];
@@ -45,25 +46,28 @@ public class RicartAgrawalaMutexController extends MutexController {
 
                 //On receiving reply message,insert into replyReceived map;
                 if (type.equals("Reply")) {
+                    int clockValue = Integer.parseInt(messageInfo[3]);
                     replyReceived.put(senderId, true);
+                    this.updateClock(clockValue);
+                    this.incrementClock();
                 } /*On receiving request message
                     - Send a reply message to the requesting process 
                     if there is no unfulfilled request or
                     unfulfilled request has larger timestamp than the requested process.
-                  */
-                else if (type.equals("Request")) {
+                 */ else if (type.equals("Request")) {
                     int clockValue = Integer.parseInt(messageInfo[3]);
                     if ((!requestingCS) || (localClockValue > clockValue)) {
-                        this.unicast(senderId, new Message(MessageType.RICART_AGRAWALA, id, "Reply"));
+                        this.unicast(senderId, new Message(MessageType.RICART_AGRAWALA, id, "Reply" + ":" + localClockValue));
+                        this.incrementClock();
                     } /* else defer the request until CS execution.*/ else {
-                        Message msg = new Message(MessageType.RICART_AGRAWALA, id, "Reply");
+                        Message msg = new Message(MessageType.RICART_AGRAWALA, id, "Reply" + ":" + localClockValue);
                         deferrredRequests.put(senderId, msg);
                     }
                 }
             }
             /*For entering critical section 
               - Received all REPLY message.
-            */
+             */
             if (replyReceived.containsValue(false)) {
                 outstandingReplies = true;
             } else {
@@ -78,7 +82,7 @@ public class RicartAgrawalaMutexController extends MutexController {
     public void csLeave() {
         /*  On leaving critical section
             - Send all deferred messages.
-        */
+         */
         for (Entry<Integer, Message> entry : deferrredRequests.entrySet()) {
             this.unicast(entry.getKey(), entry.getValue());
             this.incrementClock();
