@@ -1,5 +1,5 @@
 5 20 10 1000
-lamport
+ricart-agrawala
 
 0 dc02.utdallas.edu 4024
 1 dc03.utdallas.edu 4025

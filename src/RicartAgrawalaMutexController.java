@@ -10,7 +10,7 @@ public class RicartAgrawalaMutexController extends MutexController {
     private boolean requestingCS;
     private int nodeNum;
     private int localClockValue;
-    private HashMap<Integer, Message> deferrredRequests;
+    private HashMap<Integer, Message> deferredRequests;
 
     public RicartAgrawalaMutexController(int id, ServerController serverController) {
         super(id, serverController);
@@ -24,6 +24,7 @@ public class RicartAgrawalaMutexController extends MutexController {
         this.localClockValue = getClockValue();
         this.outstandingReplies = true;
         this.enterCS = false;
+		this.deferredRequests = new HashMap<>();
         serverController.register(MessageType.RICART_AGRAWALA, messageQueue);
     }
 
@@ -61,7 +62,7 @@ public class RicartAgrawalaMutexController extends MutexController {
                         this.incrementClock();
                     } /* else defer the request until CS execution.*/ else {
                         Message msg = new Message(MessageType.RICART_AGRAWALA, id, "Reply" + ":" + localClockValue);
-                        deferrredRequests.put(senderId, msg);
+                        deferredRequests.put(senderId, msg);
                     }
                 }
             }
@@ -83,7 +84,7 @@ public class RicartAgrawalaMutexController extends MutexController {
         /*  On leaving critical section
             - Send all deferred messages.
          */
-        for (Entry<Integer, Message> entry : deferrredRequests.entrySet()) {
+        for (Entry<Integer, Message> entry : deferredRequests.entrySet()) {
             this.unicast(entry.getKey(), entry.getValue());
             this.incrementClock();
         }

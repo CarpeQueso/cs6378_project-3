@@ -5,7 +5,7 @@ import sys
 
 net_id = "jac161530"
 main_class = "Main"
-project_path = ""
+project_path = "/home/012/j/ja/jac161530/CS6378/cs6378_project-3"
 # Parmas are: net id, hostname, command
 cmd_base_start_shell = 'zsh -c "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no %s@%s %s; $SHELL" &'
 

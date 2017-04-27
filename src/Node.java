@@ -58,8 +58,8 @@ public class Node implements Runnable {
             long timeEnter = System.currentTimeMillis();
 
             try(FileWriter fw = new FileWriter("/home/012/j/ja/jac161530/CS6378/cs6378_project-3/shared.out", true);
-                BufferedWriter bw = new BufferedWriter(fw);
-                PrintWriter out = new PrintWriter(bw)) {
+                //BufferedWriter bw = new BufferedWriter(fw);
+                PrintWriter out = new PrintWriter(fw)) {
                 out.println(id + ":" + mutexController.getClockValue() + ":enter");
                 while (System.currentTimeMillis() - timeEnter < timeInCriticalSection);
                 out.println(id + ":" + mutexController.getClockValue() + ":exit");
@@ -108,6 +108,9 @@ public class Node implements Runnable {
             mutexController = null;
             System.err.println("No mutex algorithm found!");
         }
+		for (Neighbor n : neighbors.values()) {
+        	mutexController.addNeighbor(n.getId(), n.getHostname(), n.getPort());
+		}
 
         this.serverController.start();
     }
@@ -118,7 +121,6 @@ public class Node implements Runnable {
 
     public void addNeighbor(int neighborId, String neighborHostname, int neighborPort) {
         this.neighbors.put(neighborId, new Neighbor(neighborId, neighborHostname, neighborPort));
-        mutexController.addNeighbor(neighborId, neighborHostname, neighborPort);
     }
 
     public void unicast(int neighborId, Message message) {

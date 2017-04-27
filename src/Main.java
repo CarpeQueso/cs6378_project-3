@@ -59,5 +59,7 @@ public class Main {
         node.run();
 
         node.stopServer();
+
+		System.out.printf("%d finished\n", id);
     }
 }
