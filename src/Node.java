@@ -53,16 +53,19 @@ public class Node implements Runnable {
     }
 
     public void run() {
+		//String filename = "/home/012/j/ja/jac161530/CS6378/cs6378_project-3/shared-" + id + ".out";
+		String filename = "/home/012/j/ja/jac161530/CS6378/cs6378_project-3/shared.out";
         while (numRequestsSatisfied < numTotalRequests) {
             mutexController.csEnter();
             long timeEnter = System.currentTimeMillis();
 
-            try(FileWriter fw = new FileWriter("/home/012/j/ja/jac161530/CS6378/cs6378_project-3/shared.out", true);
-                //BufferedWriter bw = new BufferedWriter(fw);
-                PrintWriter out = new PrintWriter(fw)) {
+            try(FileWriter fw = new FileWriter(filename, true);
+                BufferedWriter bw = new BufferedWriter(fw);
+                PrintWriter out = new PrintWriter(bw)) {
                 out.println(id + ":" + mutexController.getClockValue() + ":enter");
                 while (System.currentTimeMillis() - timeEnter < timeInCriticalSection);
                 out.println(id + ":" + mutexController.getClockValue() + ":exit");
+				out.flush();
             } catch (IOException e) {
                 System.err.println("Could not open file! Possible inconsistency.");
             }
@@ -71,20 +74,21 @@ public class Node implements Runnable {
 
             numRequestsSatisfied++;
 
-            try {
-                TimeUnit.MILLISECONDS.sleep(timeBetweenRequests);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+			long waitTimer = System.currentTimeMillis();
+            while (System.currentTimeMillis() - waitTimer < timeBetweenRequests) {
+				mutexController.handleIncomingMessages();
+			}
         }
 
+		System.out.printf("Id: %d, Requests Satisfied: %d\n", this.id, this.numRequestsSatisfied);
+
         broadcast(new Message(MessageType.HALT, this.id, "None"));
-        mutexController.done();
 
         boolean shouldHalt = false;
         int numHaltMessagesReceived = 0;
 
         while (!shouldHalt) {
+			mutexController.handleIncomingMessages();
             if (!haltMessageQueue.isEmpty()) {
                 Message message = haltMessageQueue.poll();
 
@@ -93,21 +97,19 @@ public class Node implements Runnable {
                     shouldHalt = true;
                 }
             }
-
         }
-
-        mutexController.halt();
     }
 
     public void startServer() {
         if (mutexAlgorithm.equals("lamport")) {
-            mutexController = new LamportMutexController(id, this.serverController);
+            mutexController = new LamportMutexController(id, this.serverController, neighbors.size() + 1);
         } else if (mutexAlgorithm.equals("ricart-agrawala")) {
-            mutexController = new RicartAgrawalaMutexController(id, this.serverController);
+            mutexController = new RicartAgrawalaMutexController(id, this.serverController, neighbors.size() + 1);
         } else {
             mutexController = null;
             System.err.println("No mutex algorithm found!");
         }
+
 		for (Neighbor n : neighbors.values()) {
         	mutexController.addNeighbor(n.getId(), n.getHostname(), n.getPort());
 		}

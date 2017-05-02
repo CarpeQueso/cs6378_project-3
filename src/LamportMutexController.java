@@ -2,109 +2,129 @@ import java.util.*;
 
 public class LamportMutexController extends MutexController{
 	private boolean allReplyReceived;
-	private int localClockValue;
-	private PriorityQueue<int[]> pq;
+	private PriorityQueue<LamportRequest> pq;
 	private HashMap<Integer,Boolean> replyReceived;
+	private int[] lastRequestClockReceived;
 	private boolean enterCriticalSection;
+	private LamportRequest currentRequest;
 	private int nodeNum;
 
-	public LamportMutexController(int id, ServerController serverController) {
+	public LamportMutexController(int id, ServerController serverController, int numNodes) {
 		super(id, serverController);
-		this.localClockValue = getClockValue();
-		this.replyReceived = new HashMap<Integer,Boolean>();
-		this.nodeNum = neighbors.size();
-		for(int i=0;i<nodeNum;i++){
+		this.replyReceived = new HashMap<>();
+		this.lastRequestClockReceived = new int[numNodes];
+		for (int i = 0; i < numNodes; i++){
 			this.replyReceived.put(i, false);
 		}
 		this.replyReceived.put(id, true);
-		this.allReplyReceived =false;
 		this.enterCriticalSection = false;
-		Comparator<int[]> comparator = new ArrayComparator();
-		this.pq = new PriorityQueue<int[]>(3,comparator);
+		Comparator<LamportRequest> comparator = new Comparator<LamportRequest>() {
+			public int compare(LamportRequest r1, LamportRequest r2) {
+				// Compare clock values
+				int clockValueCompareResult 
+					= Integer.compare(r1.getClockValue(), r2.getClockValue());
+				if (clockValueCompareResult == 0) {
+					return Integer.compare(r1.getId(), r2.getId());
+				}
+				return clockValueCompareResult;
+			}
+		};
+		this.pq = new PriorityQueue<>(11, comparator);
 		serverController.register(MessageType.LAMPORT, messageQueue);
 	}
 
 	public void csEnter() {
-		/*On generating request message
+		/*
+		 * On generating request message
 		 * 1.Insert request into priority queue
 		 * 2.Broadcast request message to all nodes
 		 */	
-		int[] clockSender = new int[2]; //local clockvalue and sender pair to add into priority queue
-		clockSender[0] =this.getClockValue();
-		clockSender[1] =id;
-		pq.add(clockSender);
-		Message message = new Message(MessageType.LAMPORT,id,"Request"+":"+localClockValue);
-		this.broadcast(message);
-		this.incrementClock();
-		//On receiving message
-		while(enterCriticalSection == false){
-			if (!messageQueue.isEmpty()) {
-				String[] messageInfo = messageQueue.poll().toString().split(":");
-				int senderId = Integer.parseInt(messageInfo[1]);
-				String type = messageInfo[2];
 
-				//On receiving reply message,insert into replyReceived map;
-				if(type.equals("Reply")){
-					int clockValue = Integer.parseInt(messageInfo[3]);
-					replyReceived.put(senderId, true);
-					this.updateClock(clockValue);
-					this.incrementClock();
-				}
-				/*On receiving request message
-				 * 1.Insert the request into the priority queue
-				 * 2.Send a reply message to the requesting process
-				 */
-				else if(type.equals("Request")){
-					int[] clocksender = new int[2];
-					int clockValue = Integer.parseInt(messageInfo[3]);
-					clocksender[0] = clockValue;
-					clocksender[1] = senderId;
-					pq.add(clocksender);
-					this.updateClock(clockValue);
-					this.incrementClock();
-					if(enterCriticalSection == false){
-						this.unicast(senderId, new Message(MessageType.LAMPORT,id,"Reply"+":"+localClockValue));
-						this.incrementClock();
-					}
-				}
-				/*On receiving a release message
-				 * 1.Remove request from the queue
-				 */
-				else if(type.equals("Release")){
-					pq.remove();
-					this.incrementClock();
-				}
-				else{
-					System.err.printf("No message of type"+type);
-				}
+		// Local clockvalue and sender pair to add into priority queue
+		this.currentRequest = new LamportRequest(this.id, this.getClockValue());
+
+		pq.add(currentRequest);
+
+		this.incrementClock();
+		this.broadcast(new Message(MessageType.LAMPORT,
+								   this.id,
+								   "Request:" + this.currentRequest.getClockValue()));
+
+		while (!enterCriticalSection) {
+			if (!messageQueue.isEmpty()) {
+				Message message = messageQueue.poll();
+				String[] messageInfo = message.getBody().split(":");
+				int clockValue = Integer.parseInt(messageInfo[1]);
+
+				if (clockValue > this.currentRequest.getClockValue()) {
+					replyReceived.put(message.getSenderId(), true);
+				}			
+
+				processMessage(message);
 			}
 
 			/*For entering critical section 
 			 * 1.Received all reply message;
 			 * 2.Own request is at the top of it's queue;
 			 */
-			if(replyReceived.containsValue(false)){
-				allReplyReceived = false;
+			if (replyReceived.containsValue(false)) {
+				// Do nothing
+			} else {
+				if (pq.peek().getId() == this.id) {
+					enterCriticalSection = true;
+				}
 			}
-			else{
-				allReplyReceived = true;
-			}
-
-
-			if((allReplyReceived==true)&&(pq.peek()[1]==id)){
-				enterCriticalSection = true;
-			}
-
 		}
 	}
 
 	public void csLeave() {
-		/*On leaving critical section
+		/* 
+		 * On leaving critical section
 		 * 1.Remove the request from the queue
 		 * 2.Broadcast a release message to all process
 		 */
-		this.broadcast(new Message(MessageType.LAMPORT,id,"Release"));
 		this.incrementClock();
-		pq.remove();
+		this.broadcast(new Message(MessageType.LAMPORT,id,"Release:" + this.getClockValue()));
+		pq.remove(this.currentRequest);
+		for (Map.Entry<Integer, Boolean> entry : replyReceived.entrySet()) {
+			if (entry.getKey() != this.id) {
+				entry.setValue(false);
+			}
+		}
+	}
+
+	public void processMessage(Message message) {
+		String[] messageInfo = message.getBody().split(":");
+		int senderId = message.getSenderId();
+		String type = messageInfo[0];
+		int clockValue = Integer.parseInt(messageInfo[1]);
+
+		this.updateClock(clockValue);
+		this.incrementClock();
+
+		if (type.equals("Reply")){
+			// Do nothing
+		} else if (type.equals("Request")){
+			/* 
+			 * On receiving request message
+			 * 1.Insert the request into the priority queue
+			 * 2.Send a reply message to the requesting process
+			 */
+			LamportRequest incomingRequest = new LamportRequest(senderId, clockValue);
+			pq.add(incomingRequest);
+			this.lastRequestClockReceived[senderId] = clockValue;
+			this.incrementClock();
+			this.unicast(senderId, new Message(MessageType.LAMPORT, 
+						this.id,
+						"Reply:" + this.getClockValue()));
+		} else if (type.equals("Release")) {
+			/* 
+			 * On receiving a release message
+			 * 1. Remove request from the queue
+			 */
+			pq.remove(new LamportRequest(senderId, this.lastRequestClockReceived[senderId]));
+		} else {
+			System.err.println("No message of type: " + type);
+		}
 	}
 }

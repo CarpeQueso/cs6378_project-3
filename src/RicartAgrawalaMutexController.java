@@ -12,7 +12,7 @@ public class RicartAgrawalaMutexController extends MutexController {
     private int localClockValue;
     private HashMap<Integer, Message> deferredRequests;
 
-    public RicartAgrawalaMutexController(int id, ServerController serverController) {
+    public RicartAgrawalaMutexController(int id, ServerController serverController, int numNodes) {
         super(id, serverController);
         this.replyReceived = new HashMap<Integer, Boolean>();
         this.requestingCS = false;
@@ -89,4 +89,8 @@ public class RicartAgrawalaMutexController extends MutexController {
             this.incrementClock();
         }
     }
+
+	public void processMessage(Message message) {
+
+	}
 }

@@ -68,37 +68,23 @@ public abstract class MutexController {
             try (Socket s = new Socket(neighbor.getHostname(), neighbor.getPort());
                  PrintWriter out = new PrintWriter(s.getOutputStream())) {
                 out.println(message.toString());
-            } catch (IOException e) {
-                System.err.printf("Unable to send broadcast message from %d to %d", this.id,
-                                  neighbor.getId());
-            }
-        }
-    }
+			} catch (IOException e) {
+				System.err.printf("Unable to send broadcast message from %d to %d", this.id,
+						neighbor.getId());
+			}
+		}
+	}
 
-    public void done() {
-        new Thread(() -> {
-                while (!halt) {
-                    if (!messageQueue.isEmpty()) {
-                        Message message = messageQueue.poll();
-                        String[] bodyComponents = message.getBody().split(":");
-                        boolean isRequest = bodyComponents[0].equals("Request");
-                        int sentClockValue = Integer.parseInt(bodyComponents[1]);
-                        updateClock(sentClockValue);
-
-                        if (isRequest) {
-                            unicast(message.getSenderId(),
-                                    new Message(message.getType(), id, "Reply:" + getClockValue()));
-                        }
-                    }
-                }
-        }).start();
-    }
-
-    public void halt() {
-        halt = true;
-    }
+	public void handleIncomingMessages() {
+		while (!messageQueue.isEmpty()) {
+			Message message = messageQueue.poll();
+			processMessage(message);
+		}
+	}
 
     public abstract void csEnter();
 
     public abstract void csLeave();
+
+	public abstract void processMessage(Message message);
 }
