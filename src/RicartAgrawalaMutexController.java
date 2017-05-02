@@ -1,81 +1,54 @@
 
 import java.util.HashMap;
-import java.util.Map.Entry;
+import java.util.LinkedList;
+import java.util.Map;
 
 public class RicartAgrawalaMutexController extends MutexController {
 
-    private boolean enterCS;
-    private boolean outstandingReplies;
-    private HashMap<Integer, Boolean> replyReceived;
-    private boolean requestingCS;
     private int nodeNum;
-    private int localClockValue;
-    private HashMap<Integer, Message> deferredRequests;
+    private int requestClockValue;
+    private boolean requestingCriticalSection;
+    private HashMap<Integer, Boolean> replyReceived;
+    private LinkedList<Integer> deferredRequests;
 
     public RicartAgrawalaMutexController(int id, ServerController serverController, int numNodes) {
         super(id, serverController);
-        this.replyReceived = new HashMap<Integer, Boolean>();
-        this.requestingCS = false;
-        nodeNum = this.neighbors.size();
-        for (int i = 0; i < nodeNum; i++) {
+        this.replyReceived = new HashMap<>();
+        for (int i = 0; i < numNodes; i++) {
             this.replyReceived.put(i, false);
         }
         this.replyReceived.put(id, true);
-        this.localClockValue = getClockValue();
-        this.outstandingReplies = true;
-        this.enterCS = false;
-		this.deferredRequests = new HashMap<>();
+        this.requestingCriticalSection = false;
+        this.requestClockValue = 0;
+        this.deferredRequests = new LinkedList<>();
         serverController.register(MessageType.RICART_AGRAWALA, messageQueue);
     }
 
     public void csEnter() {
         /*  On generating a critical section request
             -  Broadcast the request 
-         */
-        requestingCS = true;
-        localClockValue = getClockValue();
-        Message message = new Message(MessageType.RICART_AGRAWALA, id, "Request" + ":" + localClockValue);
-        this.broadcast(message);
-        this.incrementClock();
-        //On receiving message
-        while (enterCS == false) {
-            if (!messageQueue.isEmpty()) {
-                String[] messageInfo = messageQueue.poll().toString().split(":");
-                int senderId = Integer.parseInt(messageInfo[1]);
-                String type = messageInfo[2];
-                this.incrementClock();
+        */
+        boolean shouldEnterCriticalSection = false;
 
-                //On receiving reply message,insert into replyReceived map;
-                if (type.equals("Reply")) {
-                    int clockValue = Integer.parseInt(messageInfo[3]);
-                    replyReceived.put(senderId, true);
-                    this.updateClock(clockValue);
-                    this.incrementClock();
-                } /*On receiving request message
-                    - Send a reply message to the requesting process 
-                    if there is no unfulfilled request or
-                    unfulfilled request has larger timestamp than the requested process.
-                 */ else if (type.equals("Request")) {
-                    int clockValue = Integer.parseInt(messageInfo[3]);
-                    if ((!requestingCS) || (localClockValue > clockValue)) {
-                        this.unicast(senderId, new Message(MessageType.RICART_AGRAWALA, id, "Reply" + ":" + localClockValue));
-                        this.incrementClock();
-                    } /* else defer the request until CS execution.*/ else {
-                        Message msg = new Message(MessageType.RICART_AGRAWALA, id, "Reply" + ":" + localClockValue);
-                        deferredRequests.put(senderId, msg);
-                    }
-                }
+        this.requestingCriticalSection = true;
+        this.requestClockValue = this.getClockValue();
+
+        Message broadcastMessage = new Message(MessageType.RICART_AGRAWALA,
+                                               id,
+                                               "Request:" + this.requestClockValue);
+        this.incrementClock();
+        this.broadcast(broadcastMessage);
+
+        while (!shouldEnterCriticalSection) {
+            if (!messageQueue.isEmpty()) {
+                Message message = messageQueue.poll();
+                processMessage(message);
             }
-            /*For entering critical section 
-              - Received all REPLY message.
-             */
+
             if (replyReceived.containsValue(false)) {
-                outstandingReplies = true;
+                // Do nothing
             } else {
-                outstandingReplies = false;
-            }
-            if (outstandingReplies == false) {
-                enterCS = true;
+                shouldEnterCriticalSection = true;
             }
         }
     }
@@ -83,14 +56,58 @@ public class RicartAgrawalaMutexController extends MutexController {
     public void csLeave() {
         /*  On leaving critical section
             - Send all deferred messages.
-         */
-        for (Entry<Integer, Message> entry : deferredRequests.entrySet()) {
-            this.unicast(entry.getKey(), entry.getValue());
-            this.incrementClock();
+        */
+        this.requestingCriticalSection = false;
+        this.incrementClock();
+        // Treat as multicast message and send same clock value with all requests
+        int clockValue = this.getClockValue();
+        while (!deferredRequests.isEmpty()) {
+            int receiverId = deferredRequests.poll();
+            this.unicast(receiverId, new Message(MessageType.RICART_AGRAWALA,
+                                                 this.id,
+                                                 "Reply:" + clockValue));
+        }
+
+        for (Map.Entry<Integer, Boolean> entry : this.replyReceived.entrySet()) {
+            if (entry.getKey() != this.id) {
+                entry.setValue(false);
+            }
         }
     }
 
-	public void processMessage(Message message) {
+    public void processMessage(Message message) {
+        String[] messageInfo = message.getBody().split(":");
+        int senderId = message.getSenderId();
+        String type = messageInfo[0];
+        int clockValue = Integer.parseInt(messageInfo[1]);
 
-	}
+        this.updateClock(clockValue);
+        this.incrementClock();
+
+        if (type.equals("Reply")) {
+            // On receiving reply message, insert into replyReceived map;
+            replyReceived.put(senderId, true);
+        } else if (type.equals("Request")) {
+            /*On receiving request message
+              - Send a reply message to the requesting process 
+              if there is no unfulfilled request or
+              unfulfilled request has larger timestamp than the requested process.
+            */
+            if (this.requestingCriticalSection) {
+                if (this.requestClockValue > clockValue) {
+                    this.incrementClock();
+                    this.unicast(senderId, new Message(MessageType.RICART_AGRAWALA,
+                                                       id,
+                                                       "Reply:" + this.getClockValue()));
+                } else {
+                    deferredRequests.offer(senderId);
+                }
+            } else {
+                this.incrementClock();
+                this.unicast(senderId, new Message(MessageType.RICART_AGRAWALA,
+                                                   id,
+                                                   "Reply:" + this.getClockValue()));
+            }
+        }
+    }
 }
